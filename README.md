@@ -12,25 +12,39 @@ with weak/irrelevant retrievals filtered out before they ever reach the LLM.
 
 **Querying (per request)**
 question → embed → Chroma similarity search (top-k, filtered by a similarity
-threshold) → grounded prompt (`app/rag/prompts.py`) → `ChatOllama` (Llama 3 8B) →
-tokens streamed to the client over SSE. Conversation turns are cached in Redis per
-`session_id` so follow-up questions carry context, entirely separate from the
-document index.
+threshold) → grounded prompt (`app/rag/prompts.py`) → LLM → tokens streamed to the
+client over SSE. Conversation turns are cached in Redis per `session_id` so
+follow-up questions carry context, entirely separate from the document index.
+
+The LLM and embedding model are each swappable via env var (`LLM_PROVIDER`,
+`EMBEDDING_PROVIDER`) without touching code:
+
+| | local dev (default) | free cloud deploy |
+|---|---|---|
+| LLM | `ollama` — Llama 3 8B via Ollama | `groq` — Groq-hosted Llama 3 |
+| Embeddings | `ollama` — Nomic Embed Text via Ollama | `fastembed` — local ONNX model, no torch, no API |
+| Session store | standard Redis (`REDIS_URL`) | Upstash Redis REST API |
+
+See [Deploying to Render](#deploying-to-render-free) below for why local dev and
+the free cloud path use different providers.
 
 ```
 app/
   config.py            settings (env-driven)
   models.py             request/response schemas
-  vectorstore.py        shared Chroma + embeddings singletons
+  vectorstore.py        shared Chroma + embeddings singletons (Ollama or fastembed)
   rag/
     ingestion.py         load -> chunk -> embed -> store
     retrieval.py          similarity search + threshold filtering
     prompts.py            the grounding prompt
-    chain.py               LCEL chain: prompt | llm, streamed
+    chain.py               LCEL chain: prompt | llm, streamed (Ollama or Groq)
   session/
-    redis_store.py         per-session chat history
-  main.py                 FastAPI app: /query, /ingest/*, /health
+    redis_store.py         per-session chat history (Redis or Upstash REST)
+  main.py                 FastAPI app: /query, /ingest/*, /health; auto re-seeds
+                           the index on startup if it's empty (ephemeral disks)
 scripts/ingest.py        CLI to bulk-index data/documents/
+render.yaml              Render Blueprint for the free-tier deployment path
+.github/workflows/       keep-alive cron to ping /health and prevent spin-down
 ```
 
 ## Prerequisites
@@ -102,6 +116,52 @@ curl -X POST localhost:8000/ingest/file -F "file=@./some-doc.pdf"
 ```bash
 python scripts/ingest.py
 ```
+
+## Deploying to Render (free)
+
+Ollama + Llama 3 8B needs several GB of RAM just to load the model — that doesn't
+fit Render's free web service tier (512MB). Render's free tier also has no
+persistent disk, so anything written to `chroma_data/` is lost on every cold
+start. The free deployment path works around both:
+
+- **LLM** → [Groq](https://console.groq.com) hosts Llama 3 for free with a
+  generous rate limit; `ChatGroq` is a drop-in swap behind the same LangChain
+  interface (`LLM_PROVIDER=groq`).
+- **Embeddings** → [`fastembed`](https://github.com/qdrant/fastembed) runs a
+  small ONNX model in-process (~130MB, no torch, no external API), comfortably
+  within 512MB (`EMBEDDING_PROVIDER=fastembed`).
+- **Chroma persistence** → instead of a paid Disk, `app/main.py`'s startup
+  handler re-ingests `data/documents/` automatically whenever the vector store
+  is empty, so every cold start self-heals instead of serving an empty index.
+- **Session store** → [Upstash](https://upstash.com) has a real free serverless
+  Redis tier, reachable over REST (no persistent TCP connection required, which
+  suits a service that may cold-start). `app/session/redis_store.py`
+  auto-selects it when `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` are
+  set, and falls back to plain Redis (`REDIS_URL`) otherwise — local dev is
+  unaffected.
+
+**Steps:**
+
+1. Get a free Groq API key at [console.groq.com](https://console.groq.com).
+2. Create a free Redis database at [upstash.com](https://upstash.com) and copy
+   its REST URL and token (the "REST API" section of the database dashboard,
+   not the TCP connection string).
+3. Push this repo to GitHub.
+4. In the Render dashboard: **New → Blueprint**, point it at the repo. Render
+   reads [`render.yaml`](render.yaml) and provisions the web service, prompting
+   you for the three `sync: false` values: `GROQ_API_KEY`,
+   `UPSTASH_REDIS_REST_URL`, and `UPSTASH_REDIS_REST_TOKEN`.
+5. Deploy. First boot will auto-ingest `data/documents/` (check the Render logs
+   for "auto-ingesting").
+
+**Keeping it awake:** Render's free tier spins the service down after ~15
+minutes of no traffic, and the next request pays a slow cold start. A scheduled
+GitHub Actions workflow ([`.github/workflows/keep-alive.yml`](.github/workflows/keep-alive.yml))
+pings `/health` every 10 minutes to keep it warm. To enable it: in your GitHub
+repo, go to **Settings → Secrets and variables → Actions**, add a secret named
+`RENDER_APP_URL` set to your deployed URL (e.g. `https://enterprise-rag.onrender.com`).
+Note GitHub's free cron scheduler doesn't guarantee exact timing under load, so
+treat this as best-effort rather than a hard uptime guarantee.
 
 ## How hallucination is limited
 
