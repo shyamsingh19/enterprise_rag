@@ -43,6 +43,7 @@ app/
   main.py                 FastAPI app: /query, /ingest/*, /health; auto re-seeds
                            the index on startup if it's empty (ephemeral disks)
 scripts/ingest.py        CLI to bulk-index data/documents/
+ui/streamlit_app.py      minimal chat UI over /query (see "Web UI" below)
 render.yaml              Render Blueprint for the free-tier deployment path
 .github/workflows/       keep-alive cron to ping /health and prevent spin-down
 ```
@@ -116,6 +117,26 @@ curl -X POST localhost:8000/ingest/file -F "file=@./some-doc.pdf"
 ```bash
 python scripts/ingest.py
 ```
+
+## Web UI
+
+`ui/streamlit_app.py` is a minimal chat UI over the same `/query` endpoint —
+streams tokens as they arrive and shows which sources were cited. It's a plain
+web app (not a desktop toolkit) specifically so it can be hosted for free
+alongside the API.
+
+```bash
+pip install -r requirements-ui.txt
+# FASTAPI_SERVER in .env points it at your backend (local or deployed)
+streamlit run ui/streamlit_app.py
+```
+
+**Deploying it for free:** push this repo to GitHub, then on
+[Streamlit Community Cloud](https://streamlit.io/cloud) create a new app
+pointing at `ui/streamlit_app.py`, with `requirements-ui.txt` as the
+dependency file and `FASTAPI_SERVER` set to your Render URL in the app's
+secrets. No server to manage, no cold-start workaround needed — Streamlit
+Community Cloud's free tier is meant exactly for this.
 
 ## Deploying to Render (free)
 
