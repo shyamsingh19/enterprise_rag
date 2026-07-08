@@ -57,6 +57,10 @@ def index_file(path: Path, source_name: str | None = None) -> int:
     return index_documents(documents)
 
 
+def is_index_empty() -> bool:
+    return get_vectorstore()._collection.count() == 0
+
+
 def index_directory(directory: Path) -> dict[str, int]:
     """Index every supported file in a directory. Used by the standalone ingestion script."""
     results: dict[str, int] = {}
