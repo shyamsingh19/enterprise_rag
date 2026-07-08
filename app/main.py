@@ -1,20 +1,38 @@
 """FastAPI entrypoint: exposes /query (streaming, grounded Q&A) and /ingest."""
 import json
+import logging
 import tempfile
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
 
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
+from app.config import settings
 from app.models import IngestResponse, IngestTextRequest, QueryRequest
 from app.rag.chain import stream_answer
-from app.rag.ingestion import index_file, index_text
+from app.rag.ingestion import index_directory, index_file, index_text, is_index_empty
 from app.rag.retrieval import format_context, retrieve
 from app.session.redis_store import append_turn, get_history
 
-app = FastAPI(title="Enterprise Knowledge Assistant")
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Deployments with ephemeral disks (e.g. Render's free tier) lose the Chroma
+    # index on every cold start. Re-seed it from the bundled corpus so the app is
+    # never left with an empty knowledge base.
+    auto_ingest_dir = Path(settings.auto_ingest_dir)
+    if is_index_empty() and auto_ingest_dir.is_dir():
+        logger.info("Vector store is empty; auto-ingesting %s", auto_ingest_dir)
+        index_directory(auto_ingest_dir)
+    yield
+
+
+app = FastAPI(title="Enterprise Knowledge Assistant", lifespan=lifespan)
 
 
 @app.get("/health")
