@@ -1,0 +1,34 @@
+# Render Blueprint for the free-tier deployment path: Groq (hosted Llama 3) for
+# generation, fastembed (local ONNX model) for embeddings, Upstash for Redis.
+# No persistent disk -- the app re-seeds its Chroma index from data/documents/
+# on every cold start (see app/main.py's lifespan handler).
+#
+# Usage: push this repo to GitHub, then in the Render dashboard choose
+# "New > Blueprint" and point it at the repo. You'll be prompted for the
+# `sync: false` values below.
+services:
+  - type: web
+    name: enterprise-rag
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: LLM_PROVIDER
+        value: groq
+      - key: EMBEDDING_PROVIDER
+        value: fastembed
+      - key: GROQ_API_KEY
+        sync: false # get a free key at console.groq.com
+      - key: GROQ_MODEL
+        value: llama3-8b-8192
+      - key: FASTEMBED_MODEL
+        value: BAAI/bge-small-en-v1.5
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false # from the Upstash database dashboard's "REST API" section
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: CHROMA_PERSIST_DIR
+        value: /app/chroma_data
+      - key: AUTO_INGEST_DIR
+        value: /app/data/documents
