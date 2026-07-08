@@ -1,14 +1,27 @@
-"""Per-session conversation history, cached in Redis (separate from the document index)."""
+"""Per-session conversation history, cached in Redis (separate from the document index).
+
+Uses Upstash's REST API when UPSTASH_REDIS_REST_URL/TOKEN are configured (no
+persistent TCP connection needed -- a good fit for platforms like Render's free
+tier), otherwise falls back to a standard TCP Redis connection for local dev.
+Both clients expose the same async rpush/lrange/ltrim/expire methods, so the
+rest of this module doesn't need to know which one it's talking to.
+"""
 import json
 from functools import lru_cache
+from typing import Union
 
 from redis.asyncio import Redis
+from upstash_redis.asyncio import Redis as UpstashRedis
 
 from app.config import settings
 
 
 @lru_cache
-def get_redis() -> Redis:
+def get_redis() -> Union[Redis, UpstashRedis]:
+    if settings.upstash_redis_rest_url and settings.upstash_redis_rest_token:
+        return UpstashRedis(
+            url=settings.upstash_redis_rest_url, token=settings.upstash_redis_rest_token
+        )
     return Redis.from_url(settings.redis_url, decode_responses=True)
 
 
