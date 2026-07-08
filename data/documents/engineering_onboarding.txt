@@ -1,0 +1,27 @@
+Acme Corp Engineering Onboarding Guide (excerpt)
+
+Development Environment Setup
+New engineers should install Docker Desktop, the company VPN client, and clone the
+`acme/platform` monorepo. Run `make bootstrap` from the repo root to install language
+toolchains and pre-commit hooks. Access to internal services (Vault, the staging
+cluster, and the internal package registry) is provisioned automatically within one
+business day of your start date via the IT ticketing system.
+
+Code Review Standards
+Every pull request requires at least one approval from a code owner of the affected
+directory before merging. PRs should be scoped to a single logical change and include
+a test plan in the description. CI must pass, including unit tests, linting, and the
+security scan, before a PR can be merged to main. Large refactors should be discussed
+in an RFC before implementation begins.
+
+On-Call Rotation
+Engineers join the on-call rotation after 90 days of tenure on their team. Rotations
+are weekly, and the on-call engineer is responsible for triaging pages within 15
+minutes during business hours and 30 minutes outside business hours. A postmortem is
+required for any incident rated Sev-1 or Sev-2, to be published within 3 business days.
+
+Release Process
+Releases to production happen every Tuesday and Thursday via the automated deployment
+pipeline. Feature flags should be used for any change that isn't ready for immediate
+full rollout. Rollbacks can be triggered by any engineer through the deployment
+dashboard and take effect within 5 minutes.
