@@ -15,7 +15,8 @@ import streamlit as st
 from dotenv import load_dotenv
 
 load_dotenv()
-SERVER_URL = os.environ.get("FASTAPI_SERVER", "http://localhost:8000").rstrip("/")
+# get from env file
+SERVER_URL = os.getenv("FASTAPI_SERVER", "http://localhost:8000").rstrip("/")
 
 st.set_page_config(page_title="Enterprise Knowledge Assistant", page_icon="📚")
 st.title("Enterprise Knowledge Assistant")
