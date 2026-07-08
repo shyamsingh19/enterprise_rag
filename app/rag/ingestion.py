@@ -48,10 +48,12 @@ def index_text(text: str, source_name: str) -> int:
     return index_documents([Document(page_content=text, metadata={"source": source_name})])
 
 
-def index_file(path: Path) -> int:
+def index_file(path: Path, source_name: str | None = None) -> int:
+    """Index a file on disk. `source_name` overrides the metadata source (path.name by
+    default), which matters when `path` is a temp file standing in for an upload."""
     documents = load_file(path)
     for doc in documents:
-        doc.metadata["source"] = path.name
+        doc.metadata["source"] = source_name or path.name
     return index_documents(documents)
 
 

@@ -39,7 +39,7 @@ async def ingest_file(file: UploadFile) -> IngestResponse:
         tmp_path = Path(tmp.name)
 
     try:
-        chunks_indexed = index_file(tmp_path)
+        chunks_indexed = index_file(tmp_path, source_name=file.filename or tmp_path.name)
     finally:
         tmp_path.unlink(missing_ok=True)
 
