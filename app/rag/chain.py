@@ -1,7 +1,13 @@
-"""Generation phase: grounded prompt -> LLM, wired together as a LangChain LCEL chain."""
+"""Generation phase: grounded prompt -> LLM, wired together as a LangChain LCEL chain.
+
+The LLM is Llama 3 8B via Ollama for local dev, or Groq's hosted Llama 3 for
+deployments too small to host Ollama themselves (e.g. Render's free tier).
+Selected via LLM_PROVIDER.
+"""
 from functools import lru_cache
 from typing import AsyncIterator
 
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_ollama import ChatOllama
@@ -11,7 +17,12 @@ from app.rag.prompts import ANSWER_PROMPT
 
 
 @lru_cache
-def get_llm() -> ChatOllama:
+def get_llm() -> BaseChatModel:
+    if settings.llm_provider == "groq":
+        from langchain_groq import ChatGroq
+
+        return ChatGroq(model=settings.groq_model, api_key=settings.groq_api_key, temperature=0)
+
     return ChatOllama(
         model=settings.llm_model,
         base_url=settings.ollama_base_url,
