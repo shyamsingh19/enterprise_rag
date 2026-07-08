@@ -187,9 +187,3 @@ This is a prototype; validation is qualitative. With the sample documents indexe
 A labeled eval set with ground-truth answers (e.g. via `ragas` or ranking retrieved
 chunks against known-good sources) is a natural next step if this grows beyond a
 prototype.
-
-## Deploying
-
-The live links above run on Render's free tier, which needs a few workarounds
-(no GPU/RAM for self-hosted Ollama, no persistent disk, free-tier spin-down).
-See [DEVELOPMENT.md](DEVELOPMENT.md) for the full deployment guide.
