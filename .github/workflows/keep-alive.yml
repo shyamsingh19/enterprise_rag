@@ -1,0 +1,19 @@
+name: Keep Render app awake
+
+# Render's free tier spins the service down after ~15 minutes with no HTTP
+# traffic. This pings /health every 10 minutes to keep it warm. Note: GitHub
+# Actions doesn't guarantee exact cron timing (it can be delayed under load),
+# so this is best-effort, not a hard uptime guarantee.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit /health
+        run: |
+          curl -sf --max-time 20 "${{ secrets.RENDER_APP_URL }}/health" || \
+          echo "Ping failed (app may be cold-starting) -- not failing the job"
