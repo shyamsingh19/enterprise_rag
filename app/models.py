@@ -25,3 +25,18 @@ class IngestTextRequest(BaseModel):
 class IngestResponse(BaseModel):
     source_name: str
     chunks_indexed: int
+
+
+class DeleteResponse(BaseModel):
+    source_name: str
+    chunks_deleted: int
+
+
+class HistoryTurn(BaseModel):
+    role: str
+    content: str
+
+
+class HistoryResponse(BaseModel):
+    session_id: str
+    turns: list[HistoryTurn]

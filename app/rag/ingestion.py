@@ -61,6 +61,21 @@ def is_index_empty() -> bool:
     return get_vectorstore()._collection.count() == 0
 
 
+def list_sources() -> list[str]:
+    metadatas = get_vectorstore().get()["metadatas"]
+    return sorted({m.get("source", "unknown") for m in metadatas})
+
+
+def delete_source(source_name: str) -> int:
+    """Delete every chunk indexed under `source_name`. Returns how many were removed."""
+    vectorstore = get_vectorstore()
+    matches = vectorstore.get(where={"source": source_name})
+    ids = matches["ids"]
+    if ids:
+        vectorstore.delete(ids=ids)
+    return len(ids)
+
+
 def index_directory(directory: Path) -> dict[str, int]:
     """Index every supported file in a directory. Used by the standalone ingestion script."""
     results: dict[str, int] = {}

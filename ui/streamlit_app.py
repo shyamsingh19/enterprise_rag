@@ -22,7 +22,38 @@ st.set_page_config(page_title="Enterprise Knowledge Assistant", page_icon="📚"
 st.title("Enterprise Knowledge Assistant")
 st.caption(f"Connected to {SERVER_URL}")
 
+# st.session_state resets on every browser refresh, but the backend keeps
+# conversation history in Redis keyed by session_id -- so we stash session_id
+# in the URL to survive a refresh, and rehydrate the displayed messages from
+# Redis (via /sessions/{id}) the first time we see it.
+if "session_id" not in st.session_state:
+    st.session_state.session_id = st.query_params.get("session_id")
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+    if st.session_state.session_id:
+        try:
+            resp = requests.get(f"{SERVER_URL}/sessions/{st.session_state.session_id}", timeout=10)
+            resp.raise_for_status()
+            for turn in resp.json()["turns"]:
+                role = "user" if turn["role"] == "human" else "assistant"
+                st.session_state.messages.append({"role": role, "content": turn["content"]})
+        except requests.RequestException:
+            pass  # session expired or unreachable -- just start fresh
+
+
+def _set_session_id(session_id: str) -> None:
+    st.session_state.session_id = session_id
+    st.query_params["session_id"] = session_id
+
+
 with st.sidebar:
+    if st.button("New chat"):
+        st.session_state.session_id = None
+        st.session_state.messages = []
+        st.query_params.clear()
+        st.rerun()
+
     st.header("Add documents")
 
     uploaded = st.file_uploader("Upload a file", type=["txt", "md", "pdf"])
@@ -61,10 +92,26 @@ with st.sidebar:
             except requests.RequestException as exc:
                 st.error(f"Ingest failed: {exc}")
 
-if "session_id" not in st.session_state:
-    st.session_state.session_id = None
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+    st.divider()
+    st.header("Manage documents")
+    try:
+        sources = requests.get(f"{SERVER_URL}/documents", timeout=10).json()
+    except requests.RequestException:
+        sources = []
+        st.caption("Could not load document list.")
+
+    if sources:
+        to_delete = st.selectbox("Indexed documents", sources)
+        if st.button("Delete selected"):
+            try:
+                resp = requests.delete(f"{SERVER_URL}/documents/{to_delete}", timeout=30)
+                resp.raise_for_status()
+                st.success(f"Deleted {resp.json()['chunks_deleted']} chunk(s) from {to_delete}")
+                st.rerun()
+            except requests.RequestException as exc:
+                st.error(f"Delete failed: {exc}")
+    else:
+        st.caption("No documents indexed yet.")
 
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
@@ -89,7 +136,7 @@ def stream_answer(question: str):
         if line == "":
             data = "\n".join(data_lines)
             if event == "session":
-                st.session_state.session_id = data
+                _set_session_id(data)
             elif event == "sources":
                 sources = json.loads(data) if data else []
                 st.session_state["_last_sources"] = [
@@ -113,7 +160,8 @@ if question:
     with st.chat_message("assistant"):
         st.session_state["_last_sources"] = []
         try:
-            answer = st.write_stream(stream_answer(question))
+            with st.spinner("Thinking..."):
+                answer = st.write_stream(stream_answer(question))
         except requests.RequestException as exc:
             answer = f"Could not reach the server: {exc}"
             st.error(answer)
