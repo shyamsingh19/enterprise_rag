@@ -22,6 +22,45 @@ st.set_page_config(page_title="Enterprise Knowledge Assistant", page_icon="📚"
 st.title("Enterprise Knowledge Assistant")
 st.caption(f"Connected to {SERVER_URL}")
 
+with st.sidebar:
+    st.header("Add documents")
+
+    uploaded = st.file_uploader("Upload a file", type=["txt", "md", "pdf"])
+    if uploaded is not None and st.button("Ingest file"):
+        try:
+            resp = requests.post(
+                f"{SERVER_URL}/ingest/file",
+                files={"file": (uploaded.name, uploaded.getvalue())},
+                timeout=60,
+            )
+            resp.raise_for_status()
+            result = resp.json()
+            st.success(f"Indexed {result['chunks_indexed']} chunk(s) from {result['source_name']}")
+        except requests.RequestException as exc:
+            st.error(f"Ingest failed: {exc}")
+
+    st.divider()
+    st.caption("...or paste raw text")
+    text = st.text_area("Text", label_visibility="collapsed", placeholder="Paste text to index...")
+    source_name = st.text_input("Source name", placeholder="e.g. policy-update.txt")
+    if st.button("Ingest text"):
+        if not text.strip() or not source_name.strip():
+            st.warning("Enter both text and a source name.")
+        else:
+            try:
+                resp = requests.post(
+                    f"{SERVER_URL}/ingest/text",
+                    json={"text": text, "source_name": source_name},
+                    timeout=60,
+                )
+                resp.raise_for_status()
+                result = resp.json()
+                st.success(
+                    f"Indexed {result['chunks_indexed']} chunk(s) from {result['source_name']}"
+                )
+            except requests.RequestException as exc:
+                st.error(f"Ingest failed: {exc}")
+
 if "session_id" not in st.session_state:
     st.session_state.session_id = None
 if "messages" not in st.session_state:
