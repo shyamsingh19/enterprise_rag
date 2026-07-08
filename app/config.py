@@ -3,7 +3,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    # extra="ignore": .env is shared with ui/app.py (e.g. FASTAPI_SERVER), which
+    # has settings the backend doesn't need to know about.
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # Providers: "ollama" runs everything locally (default, used for local dev).
     # "groq" (LLM) / "fastembed" (embeddings) are for deployments too small to
@@ -18,7 +20,7 @@ class Settings(BaseSettings):
 
     # Groq (hosted Llama 3 inference, free tier)
     groq_api_key: str = ""
-    groq_model: str = "llama3-8b-8192"
+    groq_model: str = "llama-3.1-8b-instant"
 
     # fastembed (local ONNX embeddings, no torch, no external API)
     fastembed_model: str = "BAAI/bge-small-en-v1.5"

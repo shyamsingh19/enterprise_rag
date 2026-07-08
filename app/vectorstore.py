@@ -30,7 +30,13 @@ def get_embeddings() -> Embeddings:
 @lru_cache
 def get_vectorstore() -> Chroma:
     return Chroma(
-        collection_name=settings.chroma_collection_name,
+        # Suffixed by provider: switching EMBEDDING_PROVIDER changes vector
+        # dimensionality (768 for Ollama's nomic-embed-text, 384 for fastembed),
+        # and Chroma throws InvalidDimensionException if a collection ever sees
+        # mixed dimensions. Separate collections keep providers isolated instead
+        # of colliding, and the empty new collection just gets auto re-ingested
+        # (see app/main.py's lifespan handler).
+        collection_name=f"{settings.chroma_collection_name}_{settings.embedding_provider}",
         embedding_function=get_embeddings(),
         persist_directory=settings.chroma_persist_dir,
         # Cosine similarity gives scores in [0, 1], which is what the retrieval

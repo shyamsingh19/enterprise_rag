@@ -21,7 +21,7 @@ services:
       - key: GROQ_API_KEY
         sync: false # get a free key at console.groq.com
       - key: GROQ_MODEL
-        value: llama3-8b-8192
+        value: llama-3.1-8b-instant
       - key: FASTEMBED_MODEL
         value: BAAI/bge-small-en-v1.5
       - key: UPSTASH_REDIS_REST_URL
